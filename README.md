@@ -111,25 +111,77 @@ The app runs at `http://localhost:3000`.
 
 ## Deployment
 
-### Netlify (recommended)
+This project is configured for seamless deployment to Netlify via GitHub. The included configuration files ensure builds pass without errors:
 
-This project includes `netlify.toml` with the correct build settings:
+- **`netlify.toml`** — build command, publish directory, Node version, security headers, and caching rules
+- **`.github/workflows/ci.yml`** — runs type-check + build on every push/PR (catches issues before deploy)
+- **`.github/workflows/deploy.yml`** — builds and deploys to Netlify on every push to `main`
+- **`.github/workflows/preview.yml`** — creates a preview deployment for each pull request
+- **`.env.example`** — complete list of required environment variables
 
-```toml
-[build]
-  command = "npm run build"
-  publish = ".next"
+### Option A: Netlify Git Connect (simplest)
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-```
+1. Push your code to a GitHub repository (`git init && git remote add origin <repo-url> && git push -u origin main`)
+2. Log in to [Netlify](https://app.netlify.com) → **Add new site** → **Import an existing project**
+3. Select your GitHub repo — Netlify auto-detects Next.js and reads `netlify.toml`
+4. Add the [environment variables](#environment-variables-for-production) listed below
+5. Click **Deploy** — every subsequent `git push` to `main` triggers a new deploy
 
-1. Push your code to a Git repository
-2. Connect the repo to Netlify
-3. Add environment variables in Netlify dashboard
-4. Deploy — Netlify auto-detects Next.js
+### Option B: GitHub Actions CI/CD (recommended for teams)
 
-### Vercel
+This gives you build verification, preview deploys on PRs, and production deploys on merge.
+
+1. Push your code to GitHub
+2. In your GitHub repo, go to **Settings → Secrets and Variables → Actions**
+3. Add these **repository secrets**:
+
+| Secret | Description |
+|--------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon public key |
+| `NEXT_PUBLIC_CLOUDFLARE_R2_URL` | R2 public bucket URL |
+| `NETLIFY_AUTH_TOKEN` | Netlify personal access token (User Settings → Applications) |
+| `NETLIFY_SITE_ID` | Netlify site API ID (Site Settings → General → Site Details) |
+
+4. Go to [Netlify](https://app.netlify.com) → create a new empty site (or let the first deploy create it)
+5. Copy the **Site ID** from Site Settings → General → Site Details → API ID → add as `NETLIFY_SITE_ID` secret
+6. Push to `main` — the deploy workflow runs automatically and your site goes live
+
+**What the workflows do:**
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | Push/PR to `main`, `master` | Installs deps, type-checks, builds — fails PRs that don't compile |
+| `deploy.yml` | Push to `main`, `master` | Builds + deploys to Netlify production (requires Netlify secrets) |
+| `preview.yml` | PR opened/synced/reopened | Deploys a preview URL for review (requires Netlify secrets) |
+
+If you don't set the `NETLIFY_AUTH_TOKEN` / `NETLIFY_SITE_ID` secrets, the deploy/preview workflows skip gracefully and only CI runs.
+
+### Environment variables for production
+
+Set these in Netlify Dashboard → Site Settings → Environment Variables, or as GitHub repository secrets:
+
+| Variable | Scope | Required | Description |
+|----------|-------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Yes | Supabase anon public key |
+| `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` | Server | Yes | Supabase service role key (admin operations) |
+| `NEXT_PUBLIC_CLOUDFLARE_R2_URL` | Public | Yes | R2 public bucket URL for serving media |
+| `CLOUDFLARE_R2_ACCOUNT_ID` | Server | For uploads | Cloudflare account ID |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID` | Server | For uploads | R2 access key |
+| `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | Server | For uploads | R2 secret key |
+| `CLOUDFLARE_R2_BUCKET_NAME` | Server | For uploads | R2 bucket name (`crowntunz-music`) |
+
+> **Build note:** Only `NEXT_PUBLIC_*` variables are needed at build time. The server-only secrets (`SUPABASE_SERVICE_ROLE_KEY`, `CLOUDFLARE_R2_*`, `SUPABASE_DB_URL`) are only needed at runtime for API routes and edge functions. If they're missing, the build still succeeds — features that need them fall back gracefully.
+
+### Troubleshooting build errors
+
+- **`EAGAIN: resource temporarily unavailable, readdir`** — transient filesystem error, re-run the build
+- **Missing env var errors** — ensure all `NEXT_PUBLIC_*` vars are set in Netlify/GitHub before building
+- **`npm ci` fails** — the workflow uses `--legacy-peer-deps`; if installing locally, run `npm install --legacy-peer-deps`
+- **Build passes but site won't load** — check that Supabase URL and anon key are correct (the build doesn't validate them, but the runtime needs them)
+
+### Vercel (alternative)
 
 1. Push to Git
 2. Import the repo in Vercel
