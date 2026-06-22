@@ -1,0 +1,3 @@
+# Cloudflare Pages redirects
+# Next.js handles client-side routing, so we fall back to index.html for unknown paths.
+/*    /index.html   200

@@ -181,7 +181,80 @@ Set these in Netlify Dashboard → Site Settings → Environment Variables, or a
 - **`npm ci` fails** — the workflow uses `--legacy-peer-deps`; if installing locally, run `npm install --legacy-peer-deps`
 - **Build passes but site won't load** — check that Supabase URL and anon key are correct (the build doesn't validate them, but the runtime needs them)
 
-### Vercel (alternative)
+### Cloudflare Pages (recommended for global edge)
+
+This project is fully configured for Cloudflare Pages using the `@cloudflare/next-on-pages` adapter. The adapter compiles the Next.js app into a Cloudflare Pages-compatible worker that runs on Cloudflare's global edge network.
+
+**Included Cloudflare configuration files:**
+
+- **`wrangler.toml`** — Cloudflare Workers/Pages config with `nodejs_compat` flag, output directory, and observability
+- **`next.config.js`** — `images.unoptimized: true` for Cloudflare's static output
+- **`public/_headers`** — security headers (X-Frame-Options, CSP, caching) applied to the Pages deployment
+- **`public/_redirects`** — SPA fallback for client-side routing
+- **`.github/workflows/cloudflare-ci.yml`** — CI build verification on PRs
+- **`.github/workflows/cloudflare-deploy.yml`** — builds and deploys to Cloudflare Pages on push to `main`
+- **`.env.example`** — complete environment variable reference
+
+**Option A: Direct Cloudflare Git Connect (simplest)**
+
+1. Push your code to GitHub
+2. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+3. Select your GitHub repo
+4. Set build settings:
+   - **Framework preset**: Next.js
+   - **Build command**: `npx @cloudflare/next-on-pages@1`
+   - **Build output directory**: `.vercel/output/static`
+   - **Environment variables**: Add all `NEXT_PUBLIC_*` vars (see table below)
+5. Click **Deploy** — Cloudflare auto-builds and deploys on every push to `main`
+
+**Option B: GitHub Actions CI/CD (recommended for teams)**
+
+Provides build verification, preview deploys on PRs, and production deploys on merge.
+
+1. Push your code to GitHub
+2. In GitHub repo → **Settings → Secrets and Variables → Actions**, add these secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon public key |
+| `NEXT_PUBLIC_CLOUDFLARE_R2_URL` | R2 public bucket URL |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API token (Dashboard → My Profile → API Tokens → Create Token → "Edit Cloudflare Workers" template) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID (Dashboard → right sidebar) |
+
+3. Push to `main` — the `cloudflare-deploy.yml` workflow builds and deploys to Cloudflare Pages automatically
+
+**Cloudflare workflow reference:**
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `cloudflare-ci.yml` | Push/PR to `main`, `master` | Verifies Cloudflare Pages build artifact compiles (no deploy, no secrets needed) |
+| `cloudflare-deploy.yml` | Push to `main`, `master`, manual | Builds + deploys to Cloudflare Pages production (requires `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`) |
+
+**Local Cloudflare preview:**
+
+```bash
+npm run preview:cloudflare
+```
+
+This builds the Cloudflare Pages artifact and starts a local Wrangler dev server at `http://localhost:8788` to test the deployment before pushing.
+
+**Cloudflare Pages environment variables** — set in Cloudflare Dashboard → Pages → crowntunz-music → Settings → Environment Variables:
+
+| Variable | Scope | Required | Description |
+|----------|-------|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Build + Runtime | Yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Build + Runtime | Yes | Supabase anon public key |
+| `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY` | Runtime | Yes for admin | Supabase service role key (server only) |
+| `NEXT_PUBLIC_CLOUDFLARE_R2_URL` | Build + Runtime | Yes | R2 public bucket URL |
+| `CLOUDFLARE_R2_ACCOUNT_ID` | Runtime | For uploads | Cloudflare account ID |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID` | Runtime | For uploads | R2 access key |
+| `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | Runtime | For uploads | R2 secret key |
+| `CLOUDFLARE_R2_BUCKET_NAME` | Runtime | For uploads | R2 bucket name |
+
+> **Build note:** Only `NEXT_PUBLIC_*` variables are baked into the build. Runtime-only secrets can be added/updated in the Cloudflare dashboard without rebuilding.
+
+### Netlify (alternative)
 
 1. Push to Git
 2. Import the repo in Vercel

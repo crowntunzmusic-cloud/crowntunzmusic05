@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:cloudflare": "npx @cloudflare/next-on-pages",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "preview:cloudflare": "npm run build:cloudflare && npx wrangler pages dev .vercel/output/static"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1073.0",
@@ -73,7 +75,9 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.5",
     "@types/node": "^20.6.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "wrangler": "^3.90.0"
   }
 }

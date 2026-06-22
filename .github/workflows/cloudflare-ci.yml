@@ -1,0 +1,53 @@
+name: Cloudflare CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: cloudflare-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    name: Verify Cloudflare Pages build
+
+    env:
+      # Placeholder values let the build produce a bundle without real secrets.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      NEXT_PUBLIC_CLOUDFLARE_R2_URL: ${{ secrets.NEXT_PUBLIC_CLOUDFLARE_R2_URL || 'https://placeholder.r2.dev' }}
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build with Next.js
+        run: npm run build
+
+      - name: Build Cloudflare Pages artifact
+        run: npx @cloudflare/next-on-pages
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-pages-output
+          path: .vercel/output/static
+          retention-days: 7
